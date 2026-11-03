@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Tests (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Run the test suite
+        run: node --test
+
+      - name: Modules must load without a browser
+        run: node -e "import('./assets/dns.js').then((m) => { if (!m.compare) throw new Error('dns.js did not load'); console.log('dns.js loaded'); })"
+
+  site:
+    name: Static site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Required files are present
+        run: |
+          set -euo pipefail
+          for file in index.html README.md LICENSE assets/app.js assets/dns.js assets/style.css; do
+            test -f "$file" || { echo "missing: $file"; exit 1; }
+            echo "ok: $file"
+          done
+
+      - name: Serve the site and fetch every asset
+        run: |
+          set -euo pipefail
+          python3 -m http.server 8080 &
+          server=$!
+          trap 'kill $server' EXIT
+
+          for attempt in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:8080/ > /dev/null; then break; fi
+            sleep 0.5
+          done
+
+          for path in / /assets/app.js /assets/dns.js /assets/style.css; do
+            status=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:8080${path}")
+            echo "GET ${path} -> ${status}"
+            test "${status}" = "200"
+          done
+
+          curl -fsS http://127.0.0.1:8080/ | grep -q 'assets/app.js'
+          echo "index.html serves the module entry point"

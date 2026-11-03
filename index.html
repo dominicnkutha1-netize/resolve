@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>resolve — DNS lookups in the browser</title>
+<meta name="description" content="Ask Cloudflare and Google the same DNS question at the same time, then see where their answers differ. A records, MX, TXT, NS, CAA and more, over DNS-over-HTTPS.">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0f14'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='16' fill='%233fb950' text-anchor='middle'%3E%3E_%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <a class="wordmark" href="./">resolve<span class="caret" aria-hidden="true">_</span></a>
+    <p class="tagline">Ask two resolvers the same question. See where they disagree.</p>
+    <div class="masthead-links">
+      <a href="#how">How it works</a>
+      <a href="#limits">Limits</a>
+      <a href="https://github.com/dominicnkutha1-netize/resolve">Source</a>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <section class="query-panel" aria-labelledby="query-heading">
+    <h1 id="query-heading" class="sr-only">Look up a domain name</h1>
+
+    <form id="query-form" class="query-form" novalidate>
+      <div class="field">
+        <label class="sr-only" for="name">Domain name</label>
+        <span class="prompt" aria-hidden="true">&gt;</span>
+        <input
+          id="name"
+          name="name"
+          type="text"
+          inputmode="url"
+          autocomplete="off"
+          autocapitalize="off"
+          spellcheck="false"
+          placeholder="example.com"
+          value="dominicnkutha1-netize.github.io"
+          aria-describedby="name-help">
+        <button type="submit" class="run">Resolve</button>
+      </div>
+
+      <fieldset class="types">
+        <legend class="sr-only">Record type</legend>
+        <label><input type="radio" name="type" value="A" checked><span>A</span></label>
+        <label><input type="radio" name="type" value="AAAA"><span>AAAA</span></label>
+        <label><input type="radio" name="type" value="CNAME"><span>CNAME</span></label>
+        <label><input type="radio" name="type" value="MX"><span>MX</span></label>
+        <label><input type="radio" name="type" value="TXT"><span>TXT</span></label>
+        <label><input type="radio" name="type" value="NS"><span>NS</span></label>
+        <label><input type="radio" name="type" value="SOA"><span>SOA</span></label>
+        <label><input type="radio" name="type" value="CAA"><span>CAA</span></label>
+      </fieldset>
+
+      <p id="name-help" class="hint">
+        Enter a domain and press <kbd>Enter</kbd>. Both lookups go over DNS-over-HTTPS,
+        straight from this browser — there is no server in the middle.
+      </p>
+    </form>
+
+    <div class="examples" id="examples" aria-label="Example domains">
+      <span class="examples-label">Try:</span>
+      <button type="button" data-domain="dominicnkutha1-netize.github.io" data-type="A">dominicnkutha1-netize.github.io</button>
+      <button type="button" data-domain="github.com" data-type="MX">github.com MX</button>
+      <button type="button" data-domain="google.com" data-type="TXT">google.com TXT</button>
+      <button type="button" data-domain="cloudflare.com" data-type="AAAA">cloudflare.com AAAA</button>
+    </div>
+  </section>
+
+  <section id="verdict" class="verdict" aria-live="polite" hidden></section>
+
+  <section class="results" id="results" aria-live="polite" aria-busy="false"></section>
+
+  <section class="raw-panel" id="raw-panel" hidden>
+    <div class="raw-head">
+      <h2>Raw output</h2>
+      <div class="raw-actions">
+        <button type="button" id="copy-raw" class="ghost">Copy</button>
+        <button type="button" id="toggle-raw" class="ghost">Hide</button>
+      </div>
+    </div>
+    <pre id="raw" tabindex="0"></pre>
+    <p class="raw-note">dig-style, for pasting into a ticket. The <code>;;</code> lines are comments, as in dig.</p>
+  </section>
+
+  <section id="how" class="prose">
+    <h2>How it works</h2>
+    <p>
+      A DNS query is a question with a type. Ask for <code>A</code> and you get IPv4 addresses;
+      ask for <code>MX</code> and you get mail servers; ask for <code>TXT</code> and you get
+      whatever the zone owner decided to put in a text record, which is increasingly where
+      SPF, DKIM and domain-verification tokens live.
+    </p>
+    <p>
+      Most sites hide the resolver behind an API. This one calls two public DNS-over-HTTPS
+      endpoints directly from your browser and shows both answers side by side, because the
+      interesting failures in DNS are the ones where the two disagree:
+    </p>
+    <ul>
+      <li><strong>Stale cache.</strong> One resolver still has the old TTL; the other has
+        already expired it. This is the most common cause of "it works on my machine".</li>
+      <li><strong>Propagation.</strong> A recent change has reached one resolver and not the
+        other. Compare the TTLs to estimate how long that will last.</li>
+      <li><strong>Split horizon.</strong> The same name legitimately answers differently
+        depending on where you ask from. If you see this, it is on purpose.</li>
+    </ul>
+    <p>
+      Every answer on this page is a real query made when you pressed the button. Nothing is
+      cached in the page and nothing is mocked.
+    </p>
+  </section>
+
+  <section id="limits" class="prose">
+    <h2>What this cannot tell you</h2>
+    <ul>
+      <li><strong>What your machine sees.</strong> Your laptop may use your ISP's resolver, a
+        corporate DNS server, or a hosts file entry. This page shows what Cloudflare and
+        Google see, which is useful for diagnosis but is not the same question.</li>
+      <li><strong>DNSSEC validity.</strong> The <code>AD</code> flag is shown, but this is not
+        a validator. Do not use it to sign off on a DNSSEC deployment.</li>
+      <li><strong>UDP, TCP fallback or EDNS.</strong> DNS-over-HTTPS hides the transport, so
+        you cannot see truncation or which transport actually carried the answer.</li>
+      <li><strong>Private zones.</strong> Internal names will simply fail to resolve, which is
+        expected and not a fault in the tool.</li>
+    </ul>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <p>
+    Built by <a href="https://github.com/dominicnkutha1-netize">Busokuhle&nbsp;“Dominic”&nbsp;Nkutha</a>.
+    Source on <a href="https://github.com/dominicnkutha1-netize/resolve">GitHub</a>, MIT licensed.
+  </p>
+  <p class="fine">No analytics, no cookies, no server. Your queries are visible to the resolvers you ask.</p>
+</footer>
+
+<script type="module" src="assets/app.js"></script>
+</body>
+</html>

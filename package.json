@@ -1,0 +1,16 @@
+{
+  "name": "resolve",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DNS lookups in the browser: ask Cloudflare and Google the same question and compare the answers.",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test tests/",
+    "start": "python -m http.server 8080",
+    "serve": "npx --yes serve . -l 8080"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
